@@ -1,0 +1,4 @@
+<resources>
+    <string name="add_record">Добавить запись</string>
+    <string name="delete_record">Удалить запись</string>
+</resources>
