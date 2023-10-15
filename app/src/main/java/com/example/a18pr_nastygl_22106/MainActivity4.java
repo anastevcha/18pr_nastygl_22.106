@@ -1,11 +1,13 @@
 package com.example.a18pr_nastygl_22106;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.ContextMenu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
+import android.widget.Button;
 import android.widget.ListView;
 import android.widget.SimpleAdapter;
 
@@ -20,6 +22,7 @@ public class MainActivity4 extends Activity {
     // имена атрибутов для Map
     final String ATTRIBUTE_NAME_TEXT = "text";
     final String ATTRIBUTE_NAME_IMAGE = "image";
+    Button bt;
 
     ListView lvSimple;
     SimpleAdapter sAdapter;
@@ -30,6 +33,8 @@ public class MainActivity4 extends Activity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main4);
+        bt = findViewById(R.id.button44);
+        bt.setOnClickListener(this::OnClick);
 
         // упаковываем данные в понятную для адаптера структуру
         data = new ArrayList<Map<String, Object>>();
@@ -84,5 +89,9 @@ public class MainActivity4 extends Activity {
             return true;
         }
         return super.onContextItemSelected(item);
+    }
+    public void OnClick(View v){
+        Intent intent = new Intent(this, MainActivity5.class);
+        startActivity(intent);
     }
 }

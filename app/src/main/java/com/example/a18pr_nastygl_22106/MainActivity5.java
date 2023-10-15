@@ -5,287 +5,93 @@ import androidx.appcompat.app.AppCompatActivity;
 import android.app.Activity;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.os.Bundle;
+import android.view.ContextMenu;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.Button;
 import android.widget.ExpandableListView;
+import android.widget.ListView;
+import android.widget.SimpleCursorAdapter;
 import android.widget.SimpleCursorTreeAdapter;
 
 public class MainActivity5 extends Activity {
 
-    ExpandableListView elvMain;
+    private static final int CM_DELETE_ID = 1;
+    ListView lvData;
     DB db;
+    SimpleCursorAdapter scAdapter;
+    Cursor cursor;
+    Button bt;
 
     /** Called when the activity is first created. */
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main5);
+        bt = findViewById(R.id.button4);
+        bt.setOnClickListener(this::OnClick);
 
-        // подключаемся к БД
+        // открываем подключение к БД
         db = new DB(this);
         db.open();
 
-        // готовим данные по группам для адаптера
-        Cursor cursor = db.getCompanyData();
+        // получаем курсор
+        cursor = db.getAllData();
         startManagingCursor(cursor);
-        // сопоставление данных и View для групп
-        String[] groupFrom = { DB.COMPANY_COLUMN_NAME };
-        int[] groupTo = { android.R.id.text1 };
-        // сопоставление данных и View для элементов
-        String[] childFrom = { DB.PHONE_COLUMN_NAME };
-        int[] childTo = { android.R.id.text1 };
 
-        // создаем адаптер и настраиваем список
-        SimpleCursorTreeAdapter sctAdapter = new MyAdapter(this, cursor,
-                android.R.layout.simple_expandable_list_item_1, groupFrom,
-                groupTo, android.R.layout.simple_list_item_1, childFrom,
-                childTo);
-        elvMain = (ExpandableListView) findViewById(R.id.elvMain);
-        elvMain.setAdapter(sctAdapter);
+        // формируем столбцы сопоставления
+        String[] from = new String[] { DB.COLUMN_IMG, DB.COLUMN_TXT };
+        int[] to = new int[] { R.id.ivImg, R.id.tvText };
+
+        // создааем адаптер и настраиваем список
+        scAdapter = new SimpleCursorAdapter(this, R.layout.activity_item5, cursor, from, to);
+        lvData = (ListView) findViewById(R.id.lvData);
+        lvData.setAdapter(scAdapter);
+
+        // добавляем контекстное меню к списку
+        registerForContextMenu(lvData);
+    }
+
+    // обработка нажатия кнопки
+    public void onButtonClick(View view) {
+        // добавляем запись
+        db.addRec("sometext " + (cursor.getCount() + 1), R.drawable.ic_launcher);
+        // обновляем курсор
+        cursor.requery();
+    }
+
+    public void onCreateContextMenu(ContextMenu menu, View v,
+                                    ContextMenu.ContextMenuInfo menuInfo) {
+        super.onCreateContextMenu(menu, v, menuInfo);
+        menu.add(0, CM_DELETE_ID, 0, R.string.delete_record);
+    }
+
+    public boolean onContextItemSelected(MenuItem item) {
+        if (item.getItemId() == CM_DELETE_ID) {
+            // получаем из пункта контекстного меню данные по пункту списка
+            AdapterView.AdapterContextMenuInfo acmi = (AdapterView.AdapterContextMenuInfo) item.getMenuInfo();
+            // извлекаем id записи и удаляем соответствующую запись в БД
+            db.delRec(acmi.id);
+            // обновляем курсор
+            cursor.requery();
+            return true;
+        }
+        return super.onContextItemSelected(item);
     }
 
     protected void onDestroy() {
         super.onDestroy();
+        // закрываем подключение при выходе
         db.close();
     }
-
-    class MyAdapter extends SimpleCursorTreeAdapter {
-
-        public MyAdapter(Context context, Cursor cursor, int groupLayout,
-                         String[] groupFrom, int[] groupTo, int childLayout,
-                         String[] childFrom, int[] childTo) {
-            super(context, cursor, groupLayout, groupFrom, groupTo,
-                    childLayout, childFrom, childTo);
-        }
-
-        protected Cursor getChildrenCursor(Cursor groupCursor) {
-            // получаем курсор по элементам для конкретной группы
-            int idColumn = groupCursor.getColumnIndex(DB.COMPANY_COLUMN_ID);
-            return db.getPhoneData(groupCursor.getInt(idColumn));
-        }
-    }
-
-}
-public class DB {
-
-    private static final String DB_NAME = "mydb";
-    private static final int DB_VERSION = 1;
-
-    // имя таблицы компаний, поля и запрос создания
-    private static final String COMPANY_TABLE = "company";
-    public static final String COMPANY_COLUMN_ID = "_id";
-    public static final String COMPANY_COLUMN_NAME = "name";
-    private static final String COMPANY_TABLE_CREATE = "create table "
-            + COMPANY_TABLE + "(" + COMPANY_COLUMN_ID
-            + " integer primary key, " + COMPANY_COLUMN_NAME + " text" + ");";
-
-    // имя таблицы телефонов, поля и запрос создания
-    private static final String PHONE_TABLE = "phone";
-    public static final String PHONE_COLUMN_ID = "_id";
-    public static final String PHONE_COLUMN_NAME = "name";
-    public static final String PHONE_COLUMN_COMPANY = "company";
-    private static final String PHONE_TABLE_CREATE = "create table "
-            + PHONE_TABLE + "(" + PHONE_COLUMN_ID
-            + " integer primary key autoincrement, " + PHONE_COLUMN_NAME
-            + " text, " + PHONE_COLUMN_COMPANY + " integer" + ");";
-
-    private final Context mCtx;
-
-    private DBHelper mDBHelper;
-    private SQLiteDatabase mDB;
-
-    public DB(Context ctx) {
-        mCtx = ctx;
-    }
-
-    // открываем подключение
-    public void open() {
-        mDBHelper = new DBHelper(mCtx, DB_NAME, null, DB_VERSION);
-        mDB = mDBHelper.getWritableDatabase();
-    }
-
-    // закрываем подключение
-    public void close() {
-        if (mDBHelper != null)
-            mDBHelper.close();
-    }
-
-    // данные по компаниям
-    public Cursor getCompanyData() {
-        return mDB.query(COMPANY_TABLE, null, null, null, null, null, null);
-    }
-
-    // данные по телефонам конкретной группы
-    public Cursor getPhoneData(long companyID) {
-        return mDB.query(PHONE_TABLE, null, PHONE_COLUMN_COMPANY + " = "
-                + companyID, null, null, null, null);
-    }
-
-    private class DBHelper extends SQLiteOpenHelper {
-
-        public DBHelper(Context context, String name, SQLiteDatabase.CursorFactory factory,
-                        int version) {
-            super(context, name, factory, version);
-        }
-
-        @Override
-        public void onCreate(SQLiteDatabase db) {
-            ContentValues cv = new ContentValues();
-
-            // названия компаний (групп)
-            String[] companies = new String[] { "HTC", "Samsung", "LG" };
-
-            // создаем и заполняем таблицу компаний
-            db.execSQL(COMPANY_TABLE_CREATE);
-            for (int i = 0; i < companies.length; i++) {
-                cv.put(COMPANY_COLUMN_ID, i + 1);
-                cv.put(COMPANY_COLUMN_NAME, companies[i]);
-                db.insert(COMPANY_TABLE, null, cv);
-            }
-
-            // названия телефонов (элементов)
-            String[] phonesHTC = new String[] { "Sensation", "Desire",
-                    "Wildfire", "Hero" };
-            String[] phonesSams = new String[] { "Galaxy S II", "Galaxy Nexus",
-                    "Wave" };
-            String[] phonesLG = new String[] { "Optimus", "Optimus Link",
-                    "Optimus Black", "Optimus One" };
-
-            // создаем и заполняем таблицу телефонов
-            db.execSQL(PHONE_TABLE_CREATE);
-            cv.clear();
-            for (int i = 0; i < phonesHTC.length; i++) {
-                cv.put(PHONE_COLUMN_COMPANY, 1);
-                cv.put(PHONE_COLUMN_NAME, phonesHTC[i]);
-                db.insert(PHONE_TABLE, null, cv);
-            }
-            for (int i = 0; i < phonesSams.length; i++) {
-                cv.put(PHONE_COLUMN_COMPANY, 2);
-                cv.put(PHONE_COLUMN_NAME, phonesSams[i]);
-                db.insert(PHONE_TABLE, null, cv);
-            }
-            for (int i = 0; i < phonesLG.length; i++) {
-                cv.put(PHONE_COLUMN_COMPANY, 3);
-                cv.put(PHONE_COLUMN_NAME, phonesLG[i]);
-                db.insert(PHONE_TABLE, null, cv);
-            }
-        }
-
-        @Override
-        public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        }
-    }
-    public class DB {
-
-        private static final String DB_NAME = "mydb";
-        private static final int DB_VERSION = 1;
-
-        // имя таблицы компаний, поля и запрос создания
-        private static final String COMPANY_TABLE = "company";
-        public static final String COMPANY_COLUMN_ID = "_id";
-        public static final String COMPANY_COLUMN_NAME = "name";
-        private static final String COMPANY_TABLE_CREATE = "create table "
-                + COMPANY_TABLE + "(" + COMPANY_COLUMN_ID
-                + " integer primary key, " + COMPANY_COLUMN_NAME + " text" + ");";
-
-        // имя таблицы телефонов, поля и запрос создания
-        private static final String PHONE_TABLE = "phone";
-        public static final String PHONE_COLUMN_ID = "_id";
-        public static final String PHONE_COLUMN_NAME = "name";
-        public static final String PHONE_COLUMN_COMPANY = "company";
-        private static final String PHONE_TABLE_CREATE = "create table "
-                + PHONE_TABLE + "(" + PHONE_COLUMN_ID
-                + " integer primary key autoincrement, " + PHONE_COLUMN_NAME
-                + " text, " + PHONE_COLUMN_COMPANY + " integer" + ");";
-
-        private final Context mCtx;
-
-        private DBHelper mDBHelper;
-        private SQLiteDatabase mDB;
-
-        public DB(Context ctx) {
-            mCtx = ctx;
-        }
-
-        // открываем подключение
-        public void open() {
-            mDBHelper = new DBHelper(mCtx, DB_NAME, null, DB_VERSION);
-            mDB = mDBHelper.getWritableDatabase();
-        }
-
-        // закрываем подключение
-        public void close() {
-            if (mDBHelper != null)
-                mDBHelper.close();
-        }
-
-        // данные по компаниям
-        public Cursor getCompanyData() {
-            return mDB.query(COMPANY_TABLE, null, null, null, null, null, null);
-        }
-
-        // данные по телефонам конкретной группы
-        public Cursor getPhoneData(long companyID) {
-            return mDB.query(PHONE_TABLE, null, PHONE_COLUMN_COMPANY + " = "
-                    + companyID, null, null, null, null);
-        }
-
-        private class DBHelper extends SQLiteOpenHelper {
-
-            public DBHelper(Context context, String name, SQLiteDatabase.CursorFactory factory,
-                            int version) {
-                super(context, name, factory, version);
-            }
-
-            @Override
-            public void onCreate(SQLiteDatabase db) {
-                ContentValues cv = new ContentValues();
-
-                // названия компаний (групп)
-                String[] companies = new String[] { "HTC", "Samsung", "LG" };
-
-                // создаем и заполняем таблицу компаний
-                db.execSQL(COMPANY_TABLE_CREATE);
-                for (int i = 0; i < companies.length; i++) {
-                    cv.put(COMPANY_COLUMN_ID, i + 1);
-                    cv.put(COMPANY_COLUMN_NAME, companies[i]);
-                    db.insert(COMPANY_TABLE, null, cv);
-                }
-
-                // названия телефонов (элементов)
-                String[] phonesHTC = new String[] { "Sensation", "Desire",
-                        "Wildfire", "Hero" };
-                String[] phonesSams = new String[] { "Galaxy S II", "Galaxy Nexus",
-                        "Wave" };
-                String[] phonesLG = new String[] { "Optimus", "Optimus Link",
-                        "Optimus Black", "Optimus One" };
-
-                // создаем и заполняем таблицу телефонов
-                db.execSQL(PHONE_TABLE_CREATE);
-                cv.clear();
-                for (int i = 0; i < phonesHTC.length; i++) {
-                    cv.put(PHONE_COLUMN_COMPANY, 1);
-                    cv.put(PHONE_COLUMN_NAME, phonesHTC[i]);
-                    db.insert(PHONE_TABLE, null, cv);
-                }
-                for (int i = 0; i < phonesSams.length; i++) {
-                    cv.put(PHONE_COLUMN_COMPANY, 2);
-                    cv.put(PHONE_COLUMN_NAME, phonesSams[i]);
-                    db.insert(PHONE_TABLE, null, cv);
-                }
-                for (int i = 0; i < phonesLG.length; i++) {
-                    cv.put(PHONE_COLUMN_COMPANY, 3);
-                    cv.put(PHONE_COLUMN_NAME, phonesLG[i]);
-                    db.insert(PHONE_TABLE, null, cv);
-                }
-            }
-
-            @Override
-            public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-            }
-        }
-
+    public void OnClick(View v){
+        Intent intent = new Intent(this, MainActivity7.class);
+        startActivity(intent);
     }
 
 }
